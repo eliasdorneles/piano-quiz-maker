@@ -1,0 +1,32 @@
+body {
+  font-family: Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  margin: 0;
+  padding: 0;
+  text-align: center;
+}
+
+#piano-keyboard {
+  display: block;
+  margin: 20px auto;
+}
+
+#copyButton,
+#downloadButton {
+  padding: 10px 20px;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+#copyButton {
+  background-color: #4caf50;
+}
+#downloadButton {
+  background-color: #3f51b5;
+}
+
+#message {
+  font-size: 0.8em;
+}

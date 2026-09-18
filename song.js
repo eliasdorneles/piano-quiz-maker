@@ -18,6 +18,7 @@ const state = {
   lyrics: "",
   annotations: [], // { start, end, mask } — mask is a BigInt over absolute pitches
   pendingSel: null, // { start, end } — text selection the next chord attaches to
+  view: false, // true when the current URL is a view-only share link
 };
 
 const rootNoteSelect = document.getElementById("rootNote");
@@ -28,6 +29,11 @@ const clearKeysButton = document.getElementById("clearKeysButton");
 const addChordButton = document.getElementById("addChordButton");
 const preview = document.getElementById("preview");
 const copyLinkButton = document.getElementById("copyLinkButton");
+const editSongButton = document.getElementById("editSongButton");
+const pageTitle = document.getElementById("pageTitle");
+const viewerTitle = document.getElementById("viewerTitle");
+const previewHeading = document.getElementById("previewHeading");
+const editorOnlyElements = document.querySelectorAll(".editor-only");
 
 const modalBackdrop = document.getElementById("modalBackdrop");
 const modalKeyboard = document.getElementById("modalKeyboard");
@@ -155,36 +161,22 @@ function base64urlToBytes(text) {
   return bytes;
 }
 
-function encodeSong(song) {
+function encodeSong(song, view = false) {
   const anns = song.annotations
     .map((a) => `${a.start},${a.end},${a.mask.toString(16)}`)
     .join("|");
   const lyrics = bytesToBase64url(new TextEncoder().encode(song.lyrics));
-  return `#3.${song.rootPc},${song.octaves}.${anns}.${lyrics}`;
+  return `#3${view ? "v" : ""}.${song.rootPc},${song.octaves}.${anns}.${lyrics}`;
 }
 
-// v1: masks over semitone offsets from the root pitch class.
-// v2: masks over pitch classes.
-// Neither carried octave information; migrated notes land in BASE_OCTAVE.
-function migrateLegacyMask(legacyMask, version, rootPc) {
-  if (version === "2") {
-    // v2 masks are already pitch-class based; fold them into one octave.
-    return legacyMask << BigInt(12 * BASE_OCTAVE);
-  }
-  // v1: semitone offsets from the root pitch class.
-  let pitchMask = 0n;
-  for (let offset = 0; offset < 24 * 12 + 1; offset++) {
-    if ((legacyMask >> BigInt(offset)) & 1n) {
-      pitchMask |= 1n << BigInt(12 * BASE_OCTAVE + rootPc + offset);
-    }
-  }
-  return pitchMask;
-}
+// ---------- URL encoding ----------
 
 function decodeSong(hash) {
   const parts = hash.replace(/^#/, "").split(".");
   const version = parts[0];
-  if (parts.length !== 4 || !["1", "2", "3"].includes(version)) {
+  const view = version.endsWith("v");
+  const base = version.replace(/v$/, "");
+  if (parts.length !== 4 || base !== "3") {
     throw new Error("bad format");
   }
 
@@ -204,12 +196,9 @@ function decodeSong(hash) {
   if (parts[2] !== "") {
     for (const item of parts[2].split("|")) {
       const [start, end, maskHex] = item.split(",");
-      let mask = BigInt("0x" + maskHex);
+      const mask = BigInt("0x" + maskHex);
       if (mask < 0n) {
         throw new Error("bad mask");
-      }
-      if (version !== "3") {
-        mask = migrateLegacyMask(mask, version, rootPc);
       }
       annotations.push({ start: Number(start), end: Number(end), mask });
     }
@@ -217,12 +206,25 @@ function decodeSong(hash) {
 
   const lyrics = new TextDecoder().decode(base64urlToBytes(parts[3]));
 
-  return { rootPc, octaves, lyrics, annotations };
+  return { rootPc, octaves, lyrics, annotations, view };
 }
 
 function updateHash() {
   const url = location.origin + location.pathname + encodeSong(state);
   history.replaceState(null, "", url);
+}
+
+// ---------- View mode ----------
+
+function applyViewMode() {
+  for (const el of editorOnlyElements) {
+    el.classList.toggle("hidden", state.view);
+  }
+  pageTitle.classList.toggle("hidden", state.view);
+  viewerTitle.classList.toggle("hidden", !state.view);
+  editSongButton.classList.toggle("hidden", !state.view);
+  previewHeading.textContent = state.view ? "Song" : "Preview";
+  deleteChordButton.classList.toggle("hidden", state.view);
 }
 
 // ---------- Anchor stability on text edits ----------
@@ -416,7 +418,7 @@ function openModal(ann) {
 
 function attachModalClick() {
   modalKeyboard.addEventListener("click", (event) => {
-    if (!modalAnnotation) {
+    if (!modalAnnotation || state.view) {
       return;
     }
     const rect = modalKeyboard.getBoundingClientRect();
@@ -438,7 +440,7 @@ function attachModalClick() {
 }
 
 function closeModal() {
-  if (modalAnnotation) {
+  if (modalAnnotation && !state.view) {
     modalAnnotation.mask = modalMask;
     if (modalMask === 0n) {
       removeAnnotation(modalAnnotation);
@@ -567,7 +569,21 @@ function execCommandCopy(text, done) {
 
 copyLinkButton.addEventListener("click", () => {
   updateHash();
-  copyWithFallback(location.href, () => notify("Link copied to clipboard!", "success"));
+  copyWithFallback(
+    location.origin + location.pathname + encodeSong(state, true),
+    () => notify("View-only link copied to clipboard!", "success")
+  );
+});
+
+editSongButton.addEventListener("click", () => {
+  state.view = false;
+  history.replaceState(
+    null,
+    "",
+    location.origin + location.pathname + encodeSong(state)
+  );
+  applyViewMode();
+  notify("Editing enabled — share links stay view-only.", "success");
 });
 
 // Picker clicks toggle absolute pitches.
@@ -602,6 +618,7 @@ function initFromHash() {
     state.annotations = song.annotations.filter(
       (a) => a.start >= 0 && a.end <= song.lyrics.length && a.start < a.end
     );
+    state.view = song.view;
     return true;
   } catch (err) {
     console.error("Could not load song from URL:", err);
@@ -619,11 +636,19 @@ function init() {
   attachModalClick();
   drawPicker();
   renderPreview();
+  applyViewMode();
   if (loadedSong) {
-    notify("Song loaded from link.", "success");
+    notify(
+      state.view
+        ? "Song loaded (view only) — use “Edit song” to make changes."
+        : "Song loaded from link.",
+      "success"
+    );
+  } else if (location.hash) {
   } else if (location.hash) {
     notify("That link didn't look valid — started a new song.", "error");
   }
 }
+
 
 init();

@@ -1,60 +1,71 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <meta charset="utf-8" />
     <title>Piano Song Annotator</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body class="song-page">
-    <h1>Song Annotator</h1>
-    <p class="hint">
-      Write your lyrics, select a word, pick the notes on the keyboard and add
-      a chord. Click a mini diagram to see it bigger or edit it.
-    </p>
-
-    <div class="settings-bar">
-      <label>
-        First note
-        <select id="rootNote">
-          <option value="0">C</option>
-          <option value="1">C#</option>
-          <option value="2">D</option>
-          <option value="3">D#</option>
-          <option value="4">E</option>
-          <option value="5">F</option>
-          <option value="6">F#</option>
-          <option value="7">G</option>
-          <option value="8">G#</option>
-          <option value="9">A</option>
-          <option value="10">A#</option>
-          <option value="11">B</option>
-        </select>
-      </label>
-      <label>
-        Octaves
-        <select id="octaves">
-          <option value="2">2</option>
-          <option value="3">3</option>
-          <option value="4">4</option>
-        </select>
-      </label>
+    <div class="top-bar">
+      <h1 id="pageTitle" class="editor-only">Song Annotator</h1>
+      <h1 id="viewerTitle" class="user-only hidden">Song</h1>
+      <button id="editSongButton" class="btn secondary hidden">Edit song</button>
       <button id="copyLinkButton" class="btn primary">Copy share link</button>
     </div>
 
-    <h2>Lyrics</h2>
+    <div class="editor-only">
+      <p class="hint">
+        Write your lyrics, select a word, pick the notes on the keyboard and add
+        a chord. Click a mini diagram to see it bigger or edit it.
+      </p>
+
+      <div class="settings-bar">
+        <label>
+          First note
+          <select id="rootNote">
+            <option value="0">C</option>
+            <option value="1">C#</option>
+            <option value="2">D</option>
+            <option value="3">D#</option>
+            <option value="4">E</option>
+            <option value="5">F</option>
+            <option value="6">F#</option>
+            <option value="7">G</option>
+            <option value="8">G#</option>
+            <option value="9">A</option>
+            <option value="10">A#</option>
+            <option value="11">B</option>
+          </select>
+        </label>
+        <label>
+          Octaves
+          <select id="octaves">
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <h2 class="editor-only">Lyrics</h2>
     <textarea
       id="lyricsInput"
+      class="editor-only"
       rows="8"
       placeholder="Type your lyrics here..."
     ></textarea>
 
-    <h2>Pick the notes</h2>
-    <canvas id="chordPicker" width="801" height="200"></canvas>
-    <div>
-      <button id="clearKeysButton" class="btn secondary">Clear keys</button>
-      <button id="addChordButton" class="btn primary">Add chord to selection</button>
+    <div class="editor-only">
+      <h2>Pick the notes</h2>
+      <canvas id="chordPicker" width="801" height="200"></canvas>
+      <div>
+        <button id="clearKeysButton" class="btn secondary">Clear keys</button>
+        <button id="addChordButton" class="btn primary">Add chord to selection</button>
+      </div>
     </div>
 
-    <h2>Preview</h2>
+    <h2 id="previewHeading">Preview</h2>
     <div id="preview"></div>
 
     <div id="toast-root" aria-live="polite"></div>

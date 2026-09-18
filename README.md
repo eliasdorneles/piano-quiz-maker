@@ -15,6 +15,9 @@ A simple web-based tool for piano teachers to visualize and share keyboard patte
 4. Click keys on the keyboard to pick the notes, then click **Add chord to selection**.
 5. A mini piano diagram appears above the word. Click it to see it big, edit the notes, or delete the chord.
 6. Use **Copy share link** to save/share the song — the whole song is encoded (compressed, no libraries) in the URL.
+7. Shared links open **view-only**: recipients see the lyrics with diagrams and can zoom a
+   chord, but can't edit anything. They can click **Edit song** to remix it; copying from
+   there again yields a view-only link.
 
 ## How it Works
 

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Piano Song Annotator</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body class="song-page">
+    <h1>Song Annotator</h1>
+    <p class="hint">
+      Write your lyrics, select a word, pick the notes on the keyboard and add
+      a chord. Click a mini diagram to see it bigger or edit it.
+    </p>
+
+    <div class="settings-bar">
+      <label>
+        Root note
+        <select id="rootNote">
+          <option value="0">C</option>
+          <option value="1">C#</option>
+          <option value="2">D</option>
+          <option value="3">D#</option>
+          <option value="4">E</option>
+          <option value="5">F</option>
+          <option value="6">F#</option>
+          <option value="7">G</option>
+          <option value="8">G#</option>
+          <option value="9">A</option>
+          <option value="10">A#</option>
+          <option value="11">B</option>
+        </select>
+      </label>
+      <label>
+        Octaves
+        <select id="octaves">
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+        </select>
+      </label>
+      <button id="copyLinkButton">Copy share link</button>
+    </div>
+
+    <h2>Lyrics</h2>
+    <textarea
+      id="lyricsInput"
+      rows="8"
+      placeholder="Type your lyrics here..."
+    ></textarea>
+
+    <h2>Pick the notes</h2>
+    <canvas id="chordPicker" width="801" height="200"></canvas>
+    <div>
+      <button id="clearKeysButton">Clear keys</button>
+      <button id="addChordButton">Add chord to selection</button>
+    </div>
+
+    <h2>Preview</h2>
+    <div id="preview"></div>
+
+    <p id="message"></p>
+
+    <div id="modalBackdrop" class="hidden">
+      <div id="modal">
+        <canvas id="modalKeyboard" width="801" height="200"></canvas>
+        <div>
+          <button id="deleteChordButton">Delete chord</button>
+          <button id="closeModalButton">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="piano.js"></script>
+    <script src="song.js"></script>
+  </body>
+</html>

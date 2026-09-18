@@ -13,7 +13,7 @@
 
     <div class="settings-bar">
       <label>
-        Root note
+        First note
         <select id="rootNote">
           <option value="0">C</option>
           <option value="1">C#</option>
@@ -37,7 +37,7 @@
           <option value="4">4</option>
         </select>
       </label>
-      <button id="copyLinkButton">Copy share link</button>
+      <button id="copyLinkButton" class="btn primary">Copy share link</button>
     </div>
 
     <h2>Lyrics</h2>
@@ -50,26 +50,27 @@
     <h2>Pick the notes</h2>
     <canvas id="chordPicker" width="801" height="200"></canvas>
     <div>
-      <button id="clearKeysButton">Clear keys</button>
-      <button id="addChordButton">Add chord to selection</button>
+      <button id="clearKeysButton" class="btn secondary">Clear keys</button>
+      <button id="addChordButton" class="btn primary">Add chord to selection</button>
     </div>
 
     <h2>Preview</h2>
     <div id="preview"></div>
 
-    <p id="message"></p>
+    <div id="toast-root" aria-live="polite"></div>
 
     <div id="modalBackdrop" class="hidden">
       <div id="modal">
         <canvas id="modalKeyboard" width="801" height="200"></canvas>
-        <div>
-          <button id="deleteChordButton">Delete chord</button>
-          <button id="closeModalButton">Close</button>
+        <div class="modal-actions">
+          <button id="deleteChordButton" class="btn danger">Delete chord</button>
+          <button id="closeModalButton" class="btn secondary">Close</button>
         </div>
       </div>
     </div>
 
     <script src="piano.js"></script>
+    <script src="notify.js"></script>
     <script src="song.js"></script>
   </body>
 </html>

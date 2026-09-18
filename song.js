@@ -3,11 +3,21 @@ const PICKER_KEY_HEIGHT = 150;
 const MINI_KEY_WIDTH = 5;
 const MINI_KEY_HEIGHT = 22;
 
+// Annotations store notes as absolute pitches: a BigInt whose bit p is set
+// when pitch p is played, with pitch = 12 * octave + pitchClass (C0 = 0).
+// Notes are octave-aware; the root note select only decides the pitch class
+// of the leftmost key of the keyboard window (which auto-fits the content).
+
+// Default window start: octave 3 (e.g. C3 = pitch 36 for root C).
+const BASE_OCTAVE = 3;
+const MAX_OCTAVES = 4;
+
 const state = {
   rootPc: 0,
-  octaves: 2,
+  octaves: 2, // preferred window size; grows if the notes need more room
   lyrics: "",
-  annotations: [], // { start, end, mask } — mask is a BigInt over semitones from root
+  annotations: [], // { start, end, mask } — mask is a BigInt over absolute pitches
+  pendingSel: null, // { start, end } — text selection the next chord attaches to
 };
 
 const rootNoteSelect = document.getElementById("rootNote");
@@ -17,7 +27,6 @@ const pickerCanvas = document.getElementById("chordPicker");
 const clearKeysButton = document.getElementById("clearKeysButton");
 const addChordButton = document.getElementById("addChordButton");
 const preview = document.getElementById("preview");
-const message = document.getElementById("message");
 const copyLinkButton = document.getElementById("copyLinkButton");
 
 const modalBackdrop = document.getElementById("modalBackdrop");
@@ -26,29 +35,67 @@ const deleteChordButton = document.getElementById("deleteChordButton");
 const closeModalButton = document.getElementById("closeModalButton");
 
 let pickerLayout = null;
-let pickerKeyStates = [];
+let pickerMask = 0n; // absolute pitches currently picked on the picker keyboard
 let modalLayout = null;
-let modalKeyStates = [];
-let modalAnnotation = null; // annotation currently open in the modal
+let modalMask = 0n; // pitch classes of the annotation open in the modal
+let modalAnnotation = null;
 
 function octavesToKeyCount(octaves) {
   return octaves * 12 + 1;
 }
 
-function maskFromKeyStates(keyStates) {
-  let mask = 0n;
-  for (let i = 0; i < keyStates.length; i++) {
-    if (keyStates[i]) {
-      mask |= 1n << BigInt(i);
-    }
-  }
-  return mask;
+function pitchOf(layout, semitone) {
+  return layout.rootPitch + semitone;
 }
 
-function keyStatesFromMask(mask, totalKeys) {
+// The pitch class of the leftmost key is the "First note" select; the octave
+// is chosen so the lowest annotated note fits (BASE_OCTAVE when empty).
+function windowStartPitch() {
+  const base = 12 * BASE_OCTAVE + state.rootPc;
+  let minPitch = Infinity;
+  for (const ann of state.annotations) {
+    for (let p = 0; p < 128; p++) {
+      if ((ann.mask >> BigInt(p)) & 1n) {
+        minPitch = Math.min(minPitch, p);
+      }
+    }
+  }
+  if (minPitch === Infinity) {
+    return base;
+  }
+  // Largest pitch with the selected root pitch class that is <= minPitch,
+  // but never below pitch 0.
+  while (((minPitch - state.rootPc) % 12 + 12) % 12 !== 0) {
+    minPitch--;
+  }
+  return Math.max(minPitch, 0);
+}
+
+// Octaves actually drawn: the preferred size, extended to fit all notes.
+function windowOctaves() {
+  const start = windowStartPitch();
+  let maxPitch = 0;
+  for (const ann of state.annotations) {
+    for (let p = 127; p >= 0; p--) {
+      if ((ann.mask >> BigInt(p)) & 1n) {
+        maxPitch = p;
+        break;
+      }
+    }
+  }
+  let octaves = state.octaves;
+  while (maxPitch >= start + octavesToKeyCount(octaves) && octaves < MAX_OCTAVES) {
+    octaves++;
+  }
+  return octaves;
+}
+
+// Pressed-state array derived from an absolute-pitch mask for a given layout.
+function keyStatesForPitches(mask, layout) {
   const keyStates = [];
-  for (let i = 0; i < totalKeys; i++) {
-    keyStates.push(Boolean((mask >> BigInt(i)) & 1n));
+  for (let semitone = 0; semitone < layout.totalKeys; semitone++) {
+    const pitch = BigInt(pitchOf(layout, semitone));
+    keyStates.push(Boolean((mask >> pitch) & 1n));
   }
   return keyStates;
 }
@@ -61,37 +108,29 @@ function sizeKeyboardCanvas(canvas, layout) {
 }
 
 function drawPicker() {
-  Piano.drawKeyboard(pickerCanvas, pickerLayout, pickerKeyStates);
+  Piano.drawKeyboard(
+    pickerCanvas,
+    pickerLayout,
+    keyStatesForPitches(pickerMask, pickerLayout)
+  );
+}
+
+function buildWindowLayout(keyWidth, keyHeight) {
+  return Piano.buildLayout(
+    windowStartPitch(),
+    octavesToKeyCount(windowOctaves()),
+    keyWidth,
+    keyHeight
+  );
 }
 
 function rebuildPicker() {
-  pickerLayout = Piano.buildLayout(
-    state.rootPc,
-    octavesToKeyCount(state.octaves),
-    PICKER_KEY_WIDTH,
-    PICKER_KEY_HEIGHT
-  );
+  pickerLayout = buildWindowLayout(PICKER_KEY_WIDTH, PICKER_KEY_HEIGHT);
   sizeKeyboardCanvas(pickerCanvas, pickerLayout);
-  // Keep existing key picks, clamped to the new key count and resized.
-  pickerKeyStates = keyStatesFromMask(
-    maskFromKeyStates(pickerKeyStates),
-    pickerLayout.totalKeys
-  );
 }
 
-function clearPicker() {
-  pickerKeyStates = keyStatesFromMask(0n, pickerLayout.totalKeys);
-  drawPicker();
-}
-
-function showMessage(text) {
-  message.textContent = text;
-  setTimeout(() => {
-    if (message.textContent === text) {
-      message.textContent = "";
-    }
-  }, 2000);
-}
+// ---------- Notifications ----------
+// notify() lives in notify.js (shared with the quiz page).
 
 // ---------- URL encoding ----------
 
@@ -121,12 +160,31 @@ function encodeSong(song) {
     .map((a) => `${a.start},${a.end},${a.mask.toString(16)}`)
     .join("|");
   const lyrics = bytesToBase64url(new TextEncoder().encode(song.lyrics));
-  return `#1.${song.rootPc},${song.octaves}.${anns}.${lyrics}`;
+  return `#3.${song.rootPc},${song.octaves}.${anns}.${lyrics}`;
+}
+
+// v1: masks over semitone offsets from the root pitch class.
+// v2: masks over pitch classes.
+// Neither carried octave information; migrated notes land in BASE_OCTAVE.
+function migrateLegacyMask(legacyMask, version, rootPc) {
+  if (version === "2") {
+    // v2 masks are already pitch-class based; fold them into one octave.
+    return legacyMask << BigInt(12 * BASE_OCTAVE);
+  }
+  // v1: semitone offsets from the root pitch class.
+  let pitchMask = 0n;
+  for (let offset = 0; offset < 24 * 12 + 1; offset++) {
+    if ((legacyMask >> BigInt(offset)) & 1n) {
+      pitchMask |= 1n << BigInt(12 * BASE_OCTAVE + rootPc + offset);
+    }
+  }
+  return pitchMask;
 }
 
 function decodeSong(hash) {
   const parts = hash.replace(/^#/, "").split(".");
-  if (parts.length !== 4 || parts[0] !== "1") {
+  const version = parts[0];
+  if (parts.length !== 4 || !["1", "2", "3"].includes(version)) {
     throw new Error("bad format");
   }
 
@@ -146,9 +204,12 @@ function decodeSong(hash) {
   if (parts[2] !== "") {
     for (const item of parts[2].split("|")) {
       const [start, end, maskHex] = item.split(",");
-      const mask = BigInt("0x" + maskHex);
+      let mask = BigInt("0x" + maskHex);
       if (mask < 0n) {
         throw new Error("bad mask");
+      }
+      if (version !== "3") {
+        mask = migrateLegacyMask(mask, version, rootPc);
       }
       annotations.push({ start: Number(start), end: Number(end), mask });
     }
@@ -156,7 +217,7 @@ function decodeSong(hash) {
 
   const lyrics = new TextDecoder().decode(base64urlToBytes(parts[3]));
 
-  return { version: 1, rootPc, octaves, lyrics, annotations };
+  return { rootPc, octaves, lyrics, annotations };
 }
 
 function updateHash() {
@@ -215,50 +276,102 @@ function shiftAnnotations(oldText, newText) {
 
 // ---------- Preview rendering ----------
 
+// Splits the pending selection into sub-ranges that don't overlap existing
+// annotations, so both can render without swallowing each other.
+function selectionPieces(sortedAnnotations) {
+  const sel = state.pendingSel;
+  if (!sel || sel.start >= sel.end) {
+    return [];
+  }
+  let pieces = [{ start: sel.start, end: sel.end }];
+  for (const ann of sortedAnnotations) {
+    const next = [];
+    for (const piece of pieces) {
+      if (piece.end <= ann.start || piece.start >= ann.end) {
+        next.push(piece);
+        continue;
+      }
+      if (piece.start < ann.start) {
+        next.push({ start: piece.start, end: ann.start });
+      }
+      if (ann.end < piece.end) {
+        next.push({ start: ann.end, end: piece.end });
+      }
+    }
+    pieces = next;
+  }
+  return pieces;
+}
+
 function renderPreview() {
   preview.textContent = "";
   const text = state.lyrics;
   if (text === "") {
     return;
   }
+  const layout = buildWindowLayout(MINI_KEY_WIDTH, MINI_KEY_HEIGHT);
   const sorted = [...state.annotations].sort((a, b) => a.start - b.start);
 
-  let cursor = 0;
+  // Annotations sharing the exact same span become one annotated word with
+  // several mini diagrams stacked side by side.
+  const groups = [];
   for (const ann of sorted) {
-    if (ann.start > text.length || ann.end > text.length) {
+    const last = groups[groups.length - 1];
+    if (last && last.start === ann.start && last.end === ann.end) {
+      last.anns.push(ann);
+    } else {
+      groups.push({ type: "annotation", start: ann.start, end: ann.end, anns: [ann] });
+    }
+  }
+
+  const items = groups
+    .concat(
+      selectionPieces(
+        [...state.annotations].sort((a, b) => a.start - b.start)
+      ).map((piece) => ({ type: "selection", ...piece }))
+    )
+    .sort((a, b) => a.start - b.start || (a.type === "annotation" ? -1 : 1));
+
+  let cursor = 0;
+  for (const item of items) {
+    if (item.start > text.length || item.end > text.length) {
       continue;
     }
-    if (ann.start > cursor) {
-      preview.append(text.slice(cursor, ann.start));
+    if (item.start > cursor) {
+      preview.append(text.slice(cursor, item.start));
     }
-    const anchorStart = Math.max(ann.start, cursor);
-    if (anchorStart >= ann.end) {
-      continue; // fully swallowed by a previous annotation
+    const anchorStart = Math.max(item.start, cursor);
+    if (anchorStart >= item.end) {
+      continue; // fully swallowed by a previous segment
+    }
+
+    if (item.type === "selection") {
+      const selSpan = document.createElement("span");
+      selSpan.className = "pending-selection";
+      selSpan.textContent = text.slice(anchorStart, item.end);
+      preview.append(selSpan);
+      cursor = item.end;
+      continue;
     }
 
     const wordSpan = document.createElement("span");
     wordSpan.className = "annotated-word";
 
-    const mini = document.createElement("canvas");
-    mini.className = "mini-diagram";
-    const miniLayout = Piano.buildLayout(
-      state.rootPc,
-      octavesToKeyCount(state.octaves),
-      MINI_KEY_WIDTH,
-      MINI_KEY_HEIGHT
-    );
-    sizeKeyboardCanvas(mini, miniLayout);
-    Piano.drawKeyboard(
-      mini,
-      miniLayout,
-      keyStatesFromMask(ann.mask, miniLayout.totalKeys)
-    );
-    mini.addEventListener("click", () => openModal(ann));
-
-    wordSpan.appendChild(mini);
-    wordSpan.appendChild(document.createTextNode(text.slice(anchorStart, ann.end)));
+    for (const ann of item.anns) {
+      const mini = document.createElement("canvas");
+      mini.className = "mini-diagram";
+      sizeKeyboardCanvas(mini, layout);
+      Piano.drawKeyboard(
+        mini,
+        layout,
+        keyStatesForPitches(ann.mask, layout)
+      );
+      mini.addEventListener("click", () => openModal(ann));
+      wordSpan.appendChild(mini);
+    }
+    wordSpan.appendChild(document.createTextNode(text.slice(anchorStart, item.end)));
     preview.append(wordSpan);
-    cursor = Math.max(cursor, ann.end);
+    cursor = Math.max(cursor, item.end);
   }
   preview.append(text.slice(cursor));
 }
@@ -270,19 +383,34 @@ function removeAnnotation(ann) {
   }
 }
 
+// ---------- Pending selection tracking ----------
+
+function refreshPendingSelection() {
+  const start = lyricsInput.selectionStart;
+  const end = lyricsInput.selectionEnd;
+  const next = start < end ? { start, end } : null;
+  const changed =
+    (state.pendingSel === null) !== (next === null) ||
+    (next !== null &&
+      (state.pendingSel.start !== next.start || state.pendingSel.end !== next.end));
+  state.pendingSel = next;
+  if (changed) {
+    renderPreview();
+  }
+}
+
 // ---------- Modal ----------
 
 function openModal(ann) {
   modalAnnotation = ann;
-  modalLayout = Piano.buildLayout(
-    state.rootPc,
-    octavesToKeyCount(state.octaves),
-    PICKER_KEY_WIDTH,
-    PICKER_KEY_HEIGHT
-  );
+  modalLayout = buildWindowLayout(PICKER_KEY_WIDTH, PICKER_KEY_HEIGHT);
   sizeKeyboardCanvas(modalKeyboard, modalLayout);
-  modalKeyStates = keyStatesFromMask(ann.mask, modalLayout.totalKeys);
-  Piano.drawKeyboard(modalKeyboard, modalLayout, modalKeyStates);
+  modalMask = ann.mask;
+  Piano.drawKeyboard(
+    modalKeyboard,
+    modalLayout,
+    keyStatesForPitches(modalMask, modalLayout)
+  );
   modalBackdrop.classList.remove("hidden");
 }
 
@@ -300,15 +428,19 @@ function attachModalClick() {
     if (semitone === null) {
       return;
     }
-    modalKeyStates[semitone] = !modalKeyStates[semitone];
-    Piano.drawKeyboard(modalKeyboard, modalLayout, modalKeyStates);
+    modalMask ^= 1n << BigInt(pitchOf(modalLayout, semitone));
+    Piano.drawKeyboard(
+      modalKeyboard,
+      modalLayout,
+      keyStatesForPitches(modalMask, modalLayout)
+    );
   });
 }
 
 function closeModal() {
   if (modalAnnotation) {
-    modalAnnotation.mask = maskFromKeyStates(modalKeyStates);
-    if (modalAnnotation.mask === 0n) {
+    modalAnnotation.mask = modalMask;
+    if (modalMask === 0n) {
       removeAnnotation(modalAnnotation);
     }
     modalAnnotation = null;
@@ -318,6 +450,8 @@ function closeModal() {
   modalBackdrop.classList.add("hidden");
 }
 
+// ---------- Modal buttons ----------
+
 deleteChordButton.addEventListener("click", () => {
   if (modalAnnotation) {
     removeAnnotation(modalAnnotation);
@@ -325,7 +459,7 @@ deleteChordButton.addEventListener("click", () => {
     modalBackdrop.classList.add("hidden");
     renderPreview();
     updateHash();
-    showMessage("Chord removed.");
+    notify("Chord removed.");
   }
 });
 
@@ -355,11 +489,16 @@ function onSongSettingsChanged() {
 rootNoteSelect.addEventListener("change", () => {
   state.rootPc = Number(rootNoteSelect.value);
   onSongSettingsChanged();
+  notify(
+    `Keyboard now starts on ${["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"][state.rootPc]}. Existing chords kept their notes.`,
+    "success"
+  );
 });
 
 octavesSelect.addEventListener("change", () => {
   state.octaves = Number(octavesSelect.value);
   onSongSettingsChanged();
+  notify(`Keyboard range set to ${state.octaves} octaves.`, "success");
 });
 
 lyricsInput.addEventListener("input", () => {
@@ -367,26 +506,34 @@ lyricsInput.addEventListener("input", () => {
   const newText = lyricsInput.value;
   shiftAnnotations(oldText, newText);
   state.lyrics = newText;
+  refreshPendingSelection();
   renderPreview();
   updateHash();
 });
 
-clearKeysButton.addEventListener("click", clearPicker);
+lyricsInput.addEventListener("selectionchange", refreshPendingSelection);
+// Fallbacks for browsers that don't fire selectionchange on textareas yet.
+lyricsInput.addEventListener("mouseup", refreshPendingSelection);
+lyricsInput.addEventListener("keyup", refreshPendingSelection);
+
+clearKeysButton.addEventListener("click", () => {
+  pickerMask = 0n;
+  drawPicker();
+});
 
 addChordButton.addEventListener("click", () => {
-  const start = lyricsInput.selectionStart;
-  const end = lyricsInput.selectionEnd;
-  if (start === end) {
-    showMessage("Select a word in the lyrics first.");
+  const sel = state.pendingSel;
+  if (!sel) {
+    notify("Select a word in the lyrics first.", "error");
     return;
   }
-  const mask = maskFromKeyStates(pickerKeyStates);
-  if (mask === 0n) {
-    showMessage("Pick at least one key first.");
+  if (pickerMask === 0n) {
+    notify("Pick at least one key first.", "error");
     return;
   }
-  state.annotations.push({ start, end, mask });
-  clearPicker();
+  state.annotations.push({ start: sel.start, end: sel.end, mask: pickerMask });
+  pickerMask = 0n;
+  drawPicker();
   renderPreview();
   updateHash();
 });
@@ -420,10 +567,10 @@ function execCommandCopy(text, done) {
 
 copyLinkButton.addEventListener("click", () => {
   updateHash();
-  copyWithFallback(location.href, () => showMessage("Link copied to clipboard!"));
+  copyWithFallback(location.href, () => notify("Link copied to clipboard!", "success"));
 });
 
-// Picker clicks toggle keys (wired after the layout exists).
+// Picker clicks toggle absolute pitches.
 function attachPickerClick() {
   pickerCanvas.addEventListener("click", (event) => {
     const rect = pickerCanvas.getBoundingClientRect();
@@ -435,8 +582,9 @@ function attachPickerClick() {
     if (semitone === null) {
       return;
     }
-    pickerKeyStates[semitone] = !pickerKeyStates[semitone];
+    pickerMask ^= 1n << BigInt(pitchOf(pickerLayout, semitone));
     drawPicker();
+    refreshPendingSelection();
   });
 }
 
@@ -472,7 +620,9 @@ function init() {
   drawPicker();
   renderPreview();
   if (loadedSong) {
-    showMessage("Song loaded from link.");
+    notify("Song loaded from link.", "success");
+  } else if (location.hash) {
+    notify("That link didn't look valid — started a new song.", "error");
   }
 }
 

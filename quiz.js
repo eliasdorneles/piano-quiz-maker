@@ -1,7 +1,7 @@
 const canvas = document.getElementById("piano-keyboard");
 
-// Same keyboard as before: root C, 2 octaves + top C (32 semitones).
-const layout = Piano.buildLayout(0, 32, 40, 150);
+// Same keyboard as before: root C from octave 3 (pitch 36), 32 semitones.
+const layout = Piano.buildLayout(12 * 3, 32, 40, 150);
 
 const keyStates = [];
 for (let i = 0; i < layout.totalKeys; i++) {
@@ -22,8 +22,6 @@ downloadButton.addEventListener("click", () => {
 });
 
 const copyButton = document.getElementById("copyButton");
-
-const message = document.getElementById("message");
 
 copyButton.addEventListener("click", () => {
   const imageData = canvas.toDataURL("image/png");
@@ -47,15 +45,11 @@ copyButton.addEventListener("click", () => {
       navigator.clipboard
         .write([item])
         .then(() => {
-          console.log("Image copied to clipboard");
-          // let the user know the image was copied
-          message.textContent = "Image copied to clipboard!";
-          setTimeout(() => {
-            message.textContent = "";
-          }, 2000);
+          notify("Keyboard image copied to clipboard!", "success");
         })
         .catch((err) => {
           console.error("Error copying image to clipboard:", err);
+          notify("Couldn't copy the image. Try downloading instead.", "error");
         });
     });
   };

@@ -1,51 +1,24 @@
+:root {
+  --ivory: #fbf8f1;
+  --ink: #1f1d1b;
+  --ink-soft: #6b665e;
+  --felt: #8e3b46;
+  --felt-dark: #732e37;
+  --sand: #f4e4c1;
+  --line: #d8d2c4;
+  --success-bg: #1f1d1b;
+  --error-bg: #8e3b46;
+}
+
 body {
-  font-family: Arial, sans-serif;
+  font-family: "Helvetica Neue", Arial, sans-serif;
   font-size: 16px;
   line-height: 1.5;
   margin: 0;
-  padding: 0;
+  padding: 0 20px 40px;
   text-align: center;
-}
-
-#piano-keyboard {
-  display: block;
-  margin: 20px auto;
-}
-
-#copyButton,
-#downloadButton {
-  padding: 10px 20px;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-}
-#copyButton {
-  background-color: #4caf50;
-}
-#downloadButton {
-  background-color: #3f51b5;
-}
-
-#message {
-  font-size: 0.8em;
-}
-
-/* ---------- Song annotator (song.html) ---------- */
-
-h1 {
-  font-size: 1.4em;
-}
-
-h2 {
-  font-size: 1.1em;
-}
-
-.hint {
-  font-size: 0.85em;
-  color: #555;
-  max-width: 700px;
-  margin: 10px auto;
+  background: var(--ivory);
+  color: var(--ink);
 }
 
 body.song-page {
@@ -58,9 +31,158 @@ body.song-page {
   margin-right: auto;
 }
 
+#piano-keyboard {
+  display: block;
+  margin: 20px auto;
+}
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  padding: 10px 20px;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.1s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(31, 29, 27, 0.25);
+}
+
+.btn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.btn:focus-visible {
+  outline: 3px solid var(--felt);
+  outline-offset: 2px;
+}
+
+.btn.primary {
+  background-color: var(--ink);
+}
+
+.btn.primary:hover {
+  background-color: #33302c;
+}
+
+.btn.secondary {
+  background-color: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.btn.secondary:hover {
+  background-color: var(--sand);
+  box-shadow: none;
+}
+
+.btn.danger {
+  background-color: var(--felt);
+}
+
+.btn.danger:hover {
+  background-color: var(--felt-dark);
+}
+
+button:not(.btn) {
+  padding: 10px 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  font: inherit;
+}
+
+/* Legacy button colors kept for the quiz page until it adopts .btn */
+#copyButton,
+#downloadButton {
+  padding: 10px 20px;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+#copyButton {
+  background-color: var(--felt);
+}
+#downloadButton {
+  background-color: var(--ink);
+}
+#copyButton:hover,
+#downloadButton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(31, 29, 27, 0.25);
+}
+
+/* ---------- Quiz page text ---------- */
+
+#message {
+  font-size: 0.85em;
+}
+
+/* ---------- Song annotator (song.html) ---------- */
+
+h1 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.5em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+h2 {
+  font-size: 0.95em;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-soft);
+}
+
+.hint {
+  font-size: 0.85em;
+  color: var(--ink-soft);
+  max-width: 700px;
+  margin: 0 auto 20px;
+}
+
 #rootNote,
 #octaves {
   margin: 0 5px;
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+}
+
+.settings-bar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.settings-bar label {
+  font-size: 0.9em;
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.song-page h2 {
+  text-align: left;
 }
 
 #lyricsInput {
@@ -70,19 +192,30 @@ body.song-page {
   box-sizing: border-box;
   font-family: inherit;
   font-size: 1em;
-  padding: 8px;
+  padding: 12px;
   resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+}
+
+#lyricsInput:focus-visible {
+  outline: 3px solid var(--sand);
+  outline-offset: 0;
+  border-color: var(--ink-soft);
 }
 
 #chordPicker {
   display: block;
   margin: 10px auto;
+  cursor: pointer;
 }
 
 #preview {
   white-space: pre-wrap;
   font-size: 1.1em;
-  padding: 10px;
+  padding: 10px 0;
   max-width: 700px;
   margin: 0 auto;
 }
@@ -98,13 +231,21 @@ body.song-page {
   cursor: zoom-in;
 }
 
+.pending-selection {
+  background: var(--sand);
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px var(--sand);
+}
+
+/* ---------- Modal ---------- */
+
 #modalBackdrop {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(31, 29, 27, 0.55);
   z-index: 10;
 }
 
@@ -113,9 +254,11 @@ body.song-page {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: white;
+  background: var(--ivory);
   padding: 15px;
-  border-radius: 8px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  max-width: 95vw;
 }
 
 #modalKeyboard {
@@ -123,6 +266,63 @@ body.song-page {
   margin: 10px auto;
 }
 
+.modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .hidden {
   display: none;
+}
+
+/* ---------- Toasts ---------- */
+
+#toast-root {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--success-bg);  color: white;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 0.9em;
+  box-shadow: 0 4px 14px rgba(31, 29, 27, 0.3);
+  opacity: 1;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  max-width: 90vw;
+}
+
+.toast.error {
+  background: var(--error-bg);
+}
+
+.toast.success {
+  background: var(--success-bg);
+}
+
+.toast.leaving {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .toast {
+    transition: none;
+  }
+  .btn:hover,
+  .btn:active {
+    transform: none;
+  }
 }

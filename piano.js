@@ -1,24 +1,25 @@
 // Shared piano keyboard rendering module.
 // Exposes window.Piano with layout building, drawing, and hit-testing.
 //
-// A layout is defined by a root pitch class (0 = C .. 11 = B) and a total
-// number of keys (semitones counted from the root, inclusive). Each key has
-// a semitone offset from the root; whites and blacks are drawn in that order.
+// A layout is defined by an absolute root pitch (pitch = 12 * octave +
+// pitchClass, C0 = 0) and a total number of keys (semitones counted from the
+// root, inclusive). Each key has a semitone offset from the root; whites and
+// blacks are drawn in that order.
 
 (function () {
-  const PRESSED_COLOR = "purple";
+  const PRESSED_COLOR = "#8e3b46";
 
   // Build the layout of keys for a keyboard.
-  // rootPc: pitch class of the first (leftmost) key, 0 = C .. 11 = B.
+  // rootPitch: absolute pitch of the first (leftmost) key, 12 * oct + pc.
   // keyCount: total number of keys (semitones from root, inclusive).
-  function buildLayout(rootPc, keyCount, keyWidth, keyHeight) {
+  function buildLayout(rootPitch, keyCount, keyWidth, keyHeight) {
     const whiteKeys = [];
     const blackKeys = [];
 
     // We walk semitone by semitone; a semitone is a black key if the pitch
     // class being entered is one of C#, D#, F#, G#, A#.
     for (let semitone = 0; semitone < keyCount; semitone++) {
-      const pitchClass = (rootPc + semitone) % 12;
+      const pitchClass = (rootPitch + semitone) % 12;
       const isBlack =
         pitchClass === 1 ||
         pitchClass === 3 ||
@@ -50,7 +51,7 @@
     }
 
     return {
-      rootPc,
+      rootPitch: rootPitch,
       keyCount,
       keyWidth,
       keyHeight,
